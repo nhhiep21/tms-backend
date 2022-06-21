@@ -1,0 +1,82 @@
+version: '3.9'
+
+networks:
+  tms-net:
+    driver: bridge
+    attachable: true
+
+volumes:
+  database_volume:
+
+
+services:
+  database:
+    image: postgres:14.3-alpine
+    container_name: tms_database
+    restart: always
+    healthcheck:
+      test: [ 'CMD', 'pg_isready -U postgres' ]
+      interval: 30s
+      timeout: 10s
+      retries: 10
+    ports:
+      - '${DB_PORT}:${DB_PORT}'
+    env_file:
+      - .env
+    environment:
+      POSTGRES_DB: ${DB_NAME}
+      POSTGRES_HOST: ${DB_HOST}
+      POSTGRES_PORT: ${DB_PORT}
+      DB_USER: ${DB_USER}
+      DB_PASS: ${DB_PASS}
+    volumes:
+      - database_volume:/var/lib/postgresql
+      - ./init-user-db.sh:/docker-entrypoint-initdb.d/init-user-db.sh:ro
+    networks:
+      tms-net:
+        aliases:
+          - tms-database
+  app:
+    container_name: tms_app
+    restart: always
+    build:
+      context: .
+      target: build
+    entrypoint: sh "/entrypoint.sh"
+    environment:
+      DB_NAME: ${DB_NAME}
+      DB_HOST: ${DB_HOST}
+      DB_PORT: ${DB_PORT}
+      DB_USER: ${DB_USER}
+      DB_PASS: ${DB_PASS}
+      POETRY_CACHE_DIR: '/tmp/'
+      WAIT_FOR_DB: 1
+    expose:
+      - 8000
+    ports:
+      - '${PORT}:8000'
+    volumes:
+      - ./app:/opt/project/app
+      - ./Makefile:/opt/project/Makefile
+      - ./pyproject.toml:/opt/project/pyproject.toml
+      - ./poetry.lock:/opt/project/poetry.lock
+      - ./setup.cfg:/opt/project/setup.cfg
+    command: "uvicorn app.main:app --host 0.0.0.0 --port 8000"
+    depends_on:
+      - database
+    networks:
+      tms-net:
+        aliases:
+          - tms-app
+  nginx:
+    container_name: tms_nginx
+    build: ./nginx
+    ports:
+      - 1337:80
+    restart: always
+    depends_on:
+      - app
+    networks:
+      tms-net:
+        aliases:
+          - tms-nginx
