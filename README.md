@@ -1,4 +1,4 @@
-# FastAPI Example - Domain driven design & Clean architecture
+# Domain Driven Design & Clean Architecture
 
 ## Tech Stack
  - [Python 3.10](https://www.python.org/downloads/release/python-3100/)
